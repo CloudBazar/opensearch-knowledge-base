@@ -1,6 +1,7 @@
 import time
 import json
 from utils import os_client, get_response, check_index_exists, ValidationError, IndexNotFoundException
+from opensearchpy import NotFoundError
 
 
 def lambda_handler(event, context):
@@ -49,6 +50,12 @@ def lambda_handler(event, context):
         return get_response(
             status=400,
             message=str(e),
+        )
+    except NotFoundError as e:
+        print(e)
+        return get_response(
+            status=400,
+            message="Document not found!",
         )
     except Exception as e:
         print(e)
