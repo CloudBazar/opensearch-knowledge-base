@@ -1,0 +1,193 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Opensearch Knowledge Base App
+
+  Sample SAM Template for Opensearch Knowledge Base App
+
+
+Globals:
+  Function:
+    Timeout: 20
+    Runtime: python3.10
+    Environment:
+      Variables:
+        STAGE_NAME: !Ref StageName
+        OPEN_SEARCH_SECRET: !Ref OpenSearchSecret
+        OPEN_SEARCH_DOMAIN_ENDPOINT: !GetAtt OpenSearchServiceDomain.DomainEndpoint
+
+Parameters:
+  AllPrefix:
+    Type: String
+    Default: 'knowledge-base'
+  StageName:
+    Type: String
+    Default: 'dev'
+
+
+Resources:
+
+  # Main Role
+  CustomMainRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'CustomLambdaPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'secretsmanager:*'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'es:*'
+                Resource: '*'
+
+
+  # Open Search
+  OpenSearchSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${AllPrefix}-os-secret-${StageName}'
+      Description: 'Password will be generated dynamically'
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "admin"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 25
+        ExcludeCharacters: '"@/\'
+
+  OpenSearchServiceDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: !Sub '${AllPrefix}-os-${StageName}'
+      EngineVersion: 'OpenSearch_2.11'
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: '*'
+      ClusterConfig:
+        InstanceCount: 1
+        ZoneAwarenessEnabled: false
+        InstanceType: 't3.small.search'
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      EncryptionAtRestOptions:
+        Enabled: true
+      EBSOptions:
+        EBSEnabled: true
+        Iops: '0'
+        VolumeSize: 15
+        VolumeType: 'gp2'
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions:
+          MasterUserName: !Join [ '', [ '{{resolve:secretsmanager:', !Ref OpenSearchSecret, ':SecretString:username}}' ] ]
+          MasterUserPassword: !Join [ '', [ '{{resolve:secretsmanager:', !Ref OpenSearchSecret, ':SecretString:password}}' ] ]
+
+
+  # Api Gateway
+  DefaultApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref StageName
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'*'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: "'*'"
+              Access-Control-Allow-Headers: "'*'"
+      Cors:
+        AllowMethods: "'*'"
+        AllowHeaders: "'*'"
+        AllowOrigin: "'*'"
+
+  # Lambda
+  CreateDocumentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: create_doc.lambda_handler
+      Role: !GetAtt CustomMainRole.Arn
+      Events:
+        PingRootEvent:
+          Type: Api
+          Properties:
+            Path: /{index_name}/kb-docs
+            Method: post
+            RestApiId: !Ref DefaultApi
+
+  UpdateDocumentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: update_doc.lambda_handler
+      Role: !GetAtt CustomMainRole.Arn
+      Events:
+        PingRootEvent:
+          Type: Api
+          Properties:
+            Path: /{index_name}/kb-docs/{doc_id}
+            Method: put
+            RestApiId: !Ref DefaultApi
+
+  GetDocumentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: get_doc.lambda_handler
+      Role: !GetAtt CustomMainRole.Arn
+      Events:
+        PingRootEvent:
+          Type: Api
+          Properties:
+            Path: /{index_name}/kb-docs/{doc_id}
+            Method: get
+            RestApiId: !Ref DefaultApi
+
+  SearchDocumentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/
+      Handler: search_docs.lambda_handler
+      Role: !GetAtt CustomMainRole.Arn
+      Events:
+        PingRootEvent:
+          Type: Api
+          Properties:
+            Path: /{index_name}/kb-docs/search
+            Method: post
+            RestApiId: !Ref DefaultApi
+
+Outputs:
+  ApiGatewayLambdaInvokeUrl:
+    Value: !Sub 'https://${DefaultApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}'
+
