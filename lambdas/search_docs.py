@@ -19,7 +19,8 @@ def lambda_handler(event, context):
                 {
                   "multi_match": {
                     "query": parsed_body["text"],
-                    "fields": ["title^5", "tags^4", "md_content^3", "created_by^2", "last_updated_by^2"]
+                    "fields": ["title^5", "tags^4", "md_content^3", "created_by^2", "last_updated_by^2"],
+                    "fuzziness": "AUTO"
                   }
                 }
               ],
