@@ -13,8 +13,6 @@ Globals:
     Environment:
       Variables:
         STAGE_NAME: !Ref StageName
-        OPEN_SEARCH_SECRET: !Ref OpenSearchSecret
-        OPEN_SEARCH_DOMAIN_ENDPOINT: !GetAtt OpenSearchServiceDomain.DomainEndpoint
 
 Parameters:
   AllPrefix:
@@ -137,6 +135,10 @@ Resources:
       CodeUri: lambdas/
       Handler: create_doc.lambda_handler
       Role: !GetAtt CustomMainRole.Arn
+      Environment:
+        Variables:
+          OPEN_SEARCH_SECRET: !Ref OpenSearchSecret
+          OPEN_SEARCH_DOMAIN_ENDPOINT: !GetAtt OpenSearchServiceDomain.DomainEndpoint
       Events:
         PingRootEvent:
           Type: Api
@@ -151,6 +153,10 @@ Resources:
       CodeUri: lambdas/
       Handler: update_doc.lambda_handler
       Role: !GetAtt CustomMainRole.Arn
+      Environment:
+        Variables:
+          OPEN_SEARCH_SECRET: !Ref OpenSearchSecret
+          OPEN_SEARCH_DOMAIN_ENDPOINT: !GetAtt OpenSearchServiceDomain.DomainEndpoint
       Events:
         PingRootEvent:
           Type: Api
@@ -165,6 +171,10 @@ Resources:
       CodeUri: lambdas/
       Handler: get_doc.lambda_handler
       Role: !GetAtt CustomMainRole.Arn
+      Environment:
+        Variables:
+          OPEN_SEARCH_SECRET: !Ref OpenSearchSecret
+          OPEN_SEARCH_DOMAIN_ENDPOINT: !GetAtt OpenSearchServiceDomain.DomainEndpoint
       Events:
         PingRootEvent:
           Type: Api
@@ -179,6 +189,10 @@ Resources:
       CodeUri: lambdas/
       Handler: search_docs.lambda_handler
       Role: !GetAtt CustomMainRole.Arn
+      Environment:
+        Variables:
+          OPEN_SEARCH_SECRET: !Ref OpenSearchSecret
+          OPEN_SEARCH_DOMAIN_ENDPOINT: !GetAtt OpenSearchServiceDomain.DomainEndpoint
       Events:
         PingRootEvent:
           Type: Api
